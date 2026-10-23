@@ -189,83 +189,115 @@ function formatStreak(currentStreak) {
   return currentStreak + ' 🥶';
 }
 
-function renderRanking(players, statsById, orderedPlayers) {
-  const tbody = document.getElementById('ranking-body');
-  tbody.innerHTML = '';
-
-  const isAdmin = !!getAdminToken();
-  const thAdmin = document.getElementById('th-admin');
-  if (thAdmin) thAdmin.classList.toggle('hidden', !isAdmin);
-
-  if (orderedPlayers.length === 0) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="10" class="col-num">Inga spelare än. Logga in som admin och lägg till spelare.</td>';
-    tbody.appendChild(tr);
-    return;
-  }
-
-  // Highscore-ikoner: vid lika antal vinster / lika längsta streak → högst vinstprocent (o.s.v.)
-  const { player: mostWinsPlayer, value: mostWins } = pickPlayerAmongTiedMax(
-    players,
-    statsById,
-    (s) => s.wins
-  );
-  const { player: longestStreakPlayer, value: longestStreak } = pickPlayerAmongTiedMax(
-    players,
-    statsById,
-    (s) => s.longestWinStreak || 0
-  );
-
-  orderedPlayers.forEach((p, index) => {
-    const s = statsById[p.id];
-    const streakText = formatStreak(s.currentStreak);
-    const lastThree = s.lastResults
-      .map((r) => `<span class="${r === 'W' ? 'w' : r === 'L' ? 'l' : 'd'}">${r}</span>`)
-      .join('');
-    
-    // Lägg till ikoner för highscore-spelare
-    let nameDisplay = escapeHtml(p.name);
-    if (mostWinsPlayer && p.id === mostWinsPlayer.id && mostWins > 0) {
-      nameDisplay = '🏆 ' + nameDisplay;
-    }
-    if (longestStreakPlayer && p.id === longestStreakPlayer.id && longestStreak > 0) {
-      nameDisplay = '⭐ ' + nameDisplay;
-    }
-    
-    const tr = document.createElement('tr');
-    const editCell = isAdmin
-      ? `<td class="admin-col"><button type="button" class="btn btn-edit-stats" data-player-id="${p.id}" data-wins="${s.wins}" data-losses="${s.losses}" data-draws="${s.draws}" data-prefix-win-streak="${p.prefixWinStreak ?? 0}" title="Redigera statistik">✏️</button></td>`
-      : '';
-    tr.innerHTML =
-      `<td class="col-rank">${index + 1}</td>` +
-      `<td>${nameDisplay}</td>` +
-      `<td class="col-num">${s.wins}</td>` +
-      `<td class="col-num">${s.losses}</td>` +
-      `<td class="col-num">${s.draws}</td>` +
-      `<td class="col-num">${s.matches}</td>` +
-      `<td class="col-num">${s.matches > 0 ? s.winPct + '%' : '–'}</td>` +
-      `<td class="col-streak">${streakText}</td>` +
-      `<td><div class="last-matches">${lastThree || '–'}</div></td>` +
-      editCell;
-    tbody.appendChild(tr);
-  });
-
-  // Klick på Redigera-statistik (delegerat)
-  tbody.querySelectorAll('.btn-edit-stats').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-player-id');
-      const wins = btn.getAttribute('data-wins') || '0';
-      const losses = btn.getAttribute('data-losses') || '0';
-      const draws = btn.getAttribute('data-draws') || '0';
-      const prefix = btn.getAttribute('data-prefix-win-streak') || '0';
-      document.getElementById('edit-stats-player-id').value = id;
-      document.getElementById('edit-stats-wins').value = wins;
-      document.getElementById('edit-stats-losses').value = losses;
-      document.getElementById('edit-stats-draws').value = draws;
-      document.getElementById('edit-stats-prefix-win-streak').value = prefix;
+/** Öppnar Redigera statistik för knappar med data-attribut (admin). */
+function bindEditStatsButtons(container) {
+  container.querySelectorAll('.btn-edit-stats').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('edit-stats-player-id').value = btn.getAttribute('data-player-id');
+      document.getElementById('edit-stats-wins').value = btn.getAttribute('data-wins') || '0';
+      document.getElementById('edit-stats-losses').value = btn.getAttribute('data-losses') || '0';
+      document.getElementById('edit-stats-draws').value = btn.getAttribute('data-draws') || '0';
+      document.getElementById('edit-stats-prefix-win-streak').value = btn.getAttribute('data-prefix-win-streak') || '0';
+      document.querySelectorAll('.modal').forEach((m) => m.classList.add('hidden'));
       document.getElementById('edit-stats-modal').classList.remove('hidden');
     });
   });
+}
+
+function editStatsButton(p, s, label) {
+  return `<button type="button" class="btn btn-edit-stats" data-player-id="${p.id}" data-wins="${s.wins}" data-losses="${s.losses}" data-draws="${s.draws}" data-prefix-win-streak="${p.prefixWinStreak ?? 0}" title="Redigera statistik">${label}</button>`;
+}
+
+function lastResultsHtml(results) {
+  return results.map((r) => `<span class="${r === 'W' ? 'w' : r === 'L' ? 'l' : 'd'}">${r}</span>`).join('');
+}
+
+function highscoreIds(players, statsById) {
+  const most = pickPlayerAmongTiedMax(players, statsById, (s) => s.wins);
+  const longest = pickPlayerAmongTiedMax(players, statsById, (s) => s.longestWinStreak || 0);
+  return {
+    mostWinsId: most.player && most.value > 0 ? most.player.id : null,
+    longestStreakId: longest.player && longest.value > 0 ? longest.player.id : null
+  };
+}
+
+function nameWithIcons(p, ids) {
+  let icons = '';
+  if (ids.longestStreakId === p.id) icons += '<span class="name-icon" title="Längsta vinststreak">⭐</span>';
+  if (ids.mostWinsId === p.id) icons += '<span class="name-icon" title="Flest vinster">🏆</span>';
+  return icons + '<span class="player-name">' + escapeHtml(p.name) + '</span>';
+}
+
+function renderRanking(players, statsById, orderedPlayers) {
+  const list = document.getElementById('ranking-body');
+  list.removeAttribute('aria-busy');
+  window._lastStats = statsById;
+
+  if (orderedPlayers.length === 0) {
+    list.innerHTML = '<li class="rank-message empty-state">Inga spelare än. Logga in som admin och lägg till spelare.</li>';
+    return;
+  }
+
+  const ids = highscoreIds(players, statsById);
+  let dividerShown = false;
+  list.innerHTML = orderedPlayers
+    .map((p, index) => {
+      const s = statsById[p.id];
+      let divider = '';
+      if (!dividerShown && s.matches < 5 && index > 0) {
+        dividerShown = true;
+        divider = '<li class="rank-divider" aria-hidden="true">Färre än 5 matcher</li>';
+      }
+      const streak = formatStreak(s.currentStreak);
+      const form = s.lastResults.map((r) => `<span class="dot dot-${r.toLowerCase()}"></span>`).join('');
+      const pos = index + 1;
+      return (
+        divider +
+        `<li class="rank-item${pos <= 3 && s.matches >= 5 ? ' is-top is-top-' + pos : ''}" data-player-id="${p.id}" tabindex="0" role="button" aria-haspopup="dialog">` +
+        `<span class="rank-pos">${pos}</span>` +
+        '<span class="rank-main">' +
+        `<span class="rank-name">${nameWithIcons(p, ids)}</span>` +
+        `<span class="rank-sub">${s.matches} matcher · <b class="w">${s.wins}W</b> <b class="l">${s.losses}L</b> <b class="d">${s.draws}D</b></span>` +
+        '</span>' +
+        '<span class="rank-side">' +
+        `<span class="rank-pct">${s.matches > 0 ? s.winPct + '<small>%</small>' : '–'}</span>` +
+        `<span class="rank-meta">${streak !== '–' ? '<span class="rank-streak">' + streak + '</span>' : ''}<span class="rank-form" aria-label="Senaste ${s.lastResults.length}: ${s.lastResults.join(', ') || 'inga'}">${form}</span></span>` +
+        '</span>' +
+        '</li>'
+      );
+    })
+    .join('');
+}
+
+/** Bottenark med all statistik för en spelare. */
+function openPlayerSheet(playerId) {
+  const data = window._lastData;
+  const statsById = window._lastStats;
+  if (!data || !statsById) return;
+  const p = data.players.find((x) => x.id === playerId);
+  const s = p && statsById[p.id];
+  if (!s) return;
+  const ids = highscoreIds(data.players, statsById);
+  document.getElementById('player-sheet-title').innerHTML = nameWithIcons(p, ids);
+  const body = document.getElementById('player-sheet-body');
+  body.innerHTML =
+    '<div class="sheet-hero">' +
+    `<div><span class="sheet-big">${s.matches > 0 ? s.winPct + '%' : '–'}</span><span class="sheet-label">Vinst %</span></div>` +
+    `<div><span class="sheet-big">${s.matches}</span><span class="sheet-label">Matcher</span></div>` +
+    '</div>' +
+    '<dl class="rank-details-grid">' +
+    `<div><dt>Vinster</dt><dd class="w">${s.wins}</dd></div>` +
+    `<div><dt>Förluster</dt><dd class="l">${s.losses}</dd></div>` +
+    `<div><dt>Oavgjort</dt><dd class="d">${s.draws}</dd></div>` +
+    `<div><dt>Streak</dt><dd>${formatStreak(s.currentStreak)}</dd></div>` +
+    `<div><dt>Längsta vinststreak</dt><dd>${s.longestWinStreak || 0}</dd></div>` +
+    `<div><dt>Senaste 3 <small>(nyast först)</small></dt><dd class="last-matches">${lastResultsHtml(s.lastResults) || '–'}</dd></div>` +
+    '</dl>' +
+    (getAdminToken() ? editStatsButton(p, s, '✏️ Redigera statistik') : '');
+  bindEditStatsButtons(body);
+  document.getElementById('player-sheet').classList.remove('hidden');
+  document.getElementById('btn-close-player-sheet').focus();
 }
 
 function escapeHtml(str) {
@@ -275,27 +307,34 @@ function escapeHtml(str) {
 }
 
 /** Visar ett framgångsmeddelande (toast) */
-function showSuccessMessage(message) {
-  // Ta bort befintlig toast om den finns
-  const existingToast = document.getElementById('toast-message');
-  if (existingToast) {
-    existingToast.remove();
-  }
-  
+/** Visar ett kort meddelande. type: 'success' | 'error' */
+function showToast(message, type = 'success') {
+  const region = document.getElementById('toast-region') || document.body;
   const toast = document.createElement('div');
-  toast.id = 'toast-message';
-  toast.className = 'toast toast-success';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  
-  // Visa toast
-  setTimeout(() => toast.classList.add('show'), 10);
-  
-  // Dölj och ta bort efter 3 sekunder
-  setTimeout(() => {
+  toast.className = 'toast toast-' + type;
+  toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  toast.innerHTML = '<span class="toast-icon" aria-hidden="true">' + (type === 'error' ? '!' : '✓') + '</span><span class="toast-text"></span>';
+  toast.querySelector('.toast-text').textContent = message;
+  let hidden = false;
+  const hide = () => {
+    if (hidden) return;
+    hidden = true;
     toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
+    setTimeout(() => toast.remove(), 250);
+  };
+  toast.addEventListener('click', hide);
+  region.appendChild(toast);
+  while (region.children.length > 3) region.firstElementChild.remove();
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(hide, type === 'error' ? 6000 : 3000);
+}
+
+function showSuccessMessage(message) {
+  showToast(message, 'success');
+}
+
+function showErrorMessage(message) {
+  showToast(message, 'error');
 }
 
 function populatePlayerCheckboxes(players) {
@@ -372,7 +411,7 @@ function fillEditLatestMatchForm(match, players) {
 function openEditLatestMatchModal() {
   const data = window._lastData;
   if (!data || !data.matches || data.matches.length === 0) {
-    alert('Ingen match att redigera.');
+    showErrorMessage('Ingen match att redigera.');
     return;
   }
   const sorted = (data.matches || []).filter((m) => m.date).sort((a, b) => (b.date < a.date ? -1 : b.date > a.date ? 1 : 0));
@@ -478,21 +517,19 @@ function renderMatchHistory(players, matches) {
   listEl.innerHTML = toShow
     .map((m, index) => {
       const isDraw = (m.drawIds || []).length > 0;
-      const winnerNames = (m.winnerIds || []).map((id) => nameById[id] || id).join(', ');
-      const loserNames = (m.loserIds || []).map((id) => nameById[id] || id).join(', ');
-      const drawNames = (m.drawIds || []).map((id) => nameById[id] || id).join(', ');
+      const chips = (ids) => (ids || []).map((id) => '<span class="chip">' + escapeHtml(String(nameById[id] || id)) + '</span>').join('');
       let itemHtml;
       if (isDraw) {
         itemHtml =
           '<div class="match-history-item">' +
           '<div class="match-history-date">' + escapeHtml(formatMatchDate(m.date)) + '</div>' +
-          '<div class="match-history-row match-history-draw">Oavgjort: ' + escapeHtml(drawNames || '–') + '</div>';
+          '<div class="match-history-row match-history-draw"><span class="result-label">Oavgjort</span><span class="chips">' + (chips(m.drawIds) || '–') + '</span></div>';
       } else {
         itemHtml =
           '<div class="match-history-item">' +
           '<div class="match-history-date">' + escapeHtml(formatMatchDate(m.date)) + '</div>' +
-          '<div class="match-history-row match-history-winners">Vinnare: ' + escapeHtml(winnerNames || '–') + '</div>' +
-          '<div class="match-history-row match-history-losers">Förlorare: ' + escapeHtml(loserNames || '–') + '</div>';
+          '<div class="match-history-row match-history-winners"><span class="result-label">Vinst</span><span class="chips">' + (chips(m.winnerIds) || '–') + '</span></div>' +
+          '<div class="match-history-row match-history-losers"><span class="result-label">Förlust</span><span class="chips">' + (chips(m.loserIds) || '–') + '</span></div>';
       }
       if (index === 0 && isAdmin) {
         itemHtml +=
@@ -506,8 +543,9 @@ function renderMatchHistory(players, matches) {
     })
     .join('');
 
+  listEl.removeAttribute('aria-busy');
   if (total === 0) {
-    listEl.innerHTML = '<p class="match-history-empty">Inga matcher spelade än.</p>';
+    listEl.innerHTML = '<p class="match-history-empty empty-state">Inga matcher spelade än.</p>';
   }
 
   const countEl = document.getElementById('match-history-count');
@@ -568,68 +606,98 @@ function showMoreMatchHistory() {
 
 const MIN_PLAYERS_FOR_TEAMS = 10;
 
+function updateSessionCount(count) {
+  const countEl = document.getElementById('session-count');
+  if (countEl) countEl.textContent = count + ' / ' + MIN_PLAYERS_FOR_TEAMS + ' spelare anmälda';
+  const badge = document.getElementById('session-ready-badge');
+  if (badge) badge.classList.toggle('hidden', count < MIN_PLAYERS_FOR_TEAMS);
+  const bar = document.getElementById('session-progress-bar');
+  if (bar) {
+    bar.style.width = Math.min(100, (count / MIN_PLAYERS_FOR_TEAMS) * 100) + '%';
+    bar.classList.toggle('is-ready', count >= MIN_PLAYERS_FOR_TEAMS);
+  }
+  const tabBadge = document.getElementById('tab-session-count');
+  if (tabBadge) {
+    tabBadge.textContent = count + '/' + MIN_PLAYERS_FOR_TEAMS;
+    tabBadge.classList.toggle('is-ready', count >= MIN_PLAYERS_FOR_TEAMS);
+  }
+}
+
+function sessionPlayerInner(p) {
+  const initials = String(p.name || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  return '<span class="avatar" aria-hidden="true">' + escapeHtml(initials) + '</span>' +
+    '<span class="session-name">' + escapeHtml(p.name) + '</span>' +
+    '<span class="session-check" aria-hidden="true"></span>';
+}
+
 function renderSession(players, session) {
   const container = document.getElementById('session-players');
-  const countEl = document.getElementById('session-count');
-  const readyBadge = document.getElementById('session-ready-badge');
-  if (!container || !countEl) return;
+  if (!container) return;
 
   const ids = session.playerIds || [];
-  const count = ids.length;
-  countEl.textContent = count + ' / ' + MIN_PLAYERS_FOR_TEAMS + ' spelare anmälda';
-  if (readyBadge) {
-    readyBadge.classList.toggle('hidden', count < MIN_PLAYERS_FOR_TEAMS);
-  }
+  updateSessionCount(ids.length);
 
   const teams = session.generatedTeams;
-  if (teams) {
-    const block = document.getElementById('teams-result');
+  const block = document.getElementById('teams-result');
+  if (teams && block) {
     const listA = document.getElementById('team-a-list');
     const listB = document.getElementById('team-b-list');
     const strategyTitle = document.getElementById('teams-strategy-title');
-    if (block && listA && listB) {
-      listA.innerHTML = (teams.teamA || []).map((p) => '<li>' + escapeHtml(p.name) + '</li>').join('');
-      listB.innerHTML = (teams.teamB || []).map((p) => '<li>' + escapeHtml(p.name) + '</li>').join('');
-      if (strategyTitle) {
-        strategyTitle.textContent = 'Strategi: ' + (teams.strategy || 'random');
-      }
-      block.classList.remove('hidden');
-    }
-  } else {
-    const block = document.getElementById('teams-result');
-    if (block) block.classList.add('hidden');
+    listA.innerHTML = (teams.teamA || []).map((p) => '<li>' + escapeHtml(p.name) + '</li>').join('');
+    listB.innerHTML = (teams.teamB || []).map((p) => '<li>' + escapeHtml(p.name) + '</li>').join('');
+    if (strategyTitle) strategyTitle.textContent = 'Strategi: ' + (teams.strategy || 'random');
+    block.classList.remove('hidden');
+  } else if (block) {
+    block.classList.add('hidden');
   }
 
+  container.removeAttribute('aria-busy');
+  if (players.length === 0) {
+    container.innerHTML = '<p class="empty-state">Inga spelare än. Admin lägger till spelare.</p>';
+    return;
+  }
   container.innerHTML = players
-    .map(
-      (p) =>
-        `<label class="session-player-label"><input type="checkbox" class="session-join-cb" data-player-id="${p.id}" ${ids.includes(p.id) ? 'checked' : ''}> ${escapeHtml(p.name)}</label>`
-    )
+    .map((p) => {
+      const joined = ids.includes(p.id);
+      return (
+        `<label class="session-player${joined ? ' is-selected' : ''}">` +
+        `<input type="checkbox" class="session-join-cb visually-hidden" data-player-id="${p.id}" ${joined ? 'checked' : ''}>` +
+        sessionPlayerInner(p) +
+        '</label>'
+      );
+    })
     .join('');
 
   container.querySelectorAll('.session-join-cb').forEach((cb) => {
     cb.addEventListener('change', async () => {
+      const row = cb.closest('.session-player');
       const playerId = parseInt(cb.dataset.playerId, 10);
-      const url = cb.checked ? API + '/session/join' : API + '/session/leave';
+      const joining = cb.checked;
+      row.classList.toggle('is-selected', joining);
+      row.classList.add('is-pending');
+      cb.disabled = true;
       try {
-        const res = await fetch(url, {
+        const res = await fetch(joining ? API + '/session/join' : API + '/session/leave', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId }),
         });
         const data = await res.json().catch(() => ({}));
-        if (res.ok && data.playerIds) {
-          countEl.textContent = data.playerIds.length + ' / ' + MIN_PLAYERS_FOR_TEAMS + ' spelare anmälda';
-          const badge = document.getElementById('session-ready-badge');
-          if (badge) badge.classList.toggle('hidden', data.playerIds.length < MIN_PLAYERS_FOR_TEAMS);
-          if (getAdminToken()) {
-            const session = await fetchSession();
-            window._lastSession = session;
-            updateAdminSessionUI(session);
-          }
+        if (!res.ok || !data.playerIds) throw new Error(data.error || 'Anmälan sparades inte. Försök igen.');
+        updateSessionCount(data.playerIds.length);
+        if (window._lastSession) window._lastSession.playerIds = data.playerIds;
+        if (getAdminToken()) {
+          const fresh = await fetchSession();
+          window._lastSession = fresh;
+          updateAdminSessionUI(fresh);
         }
       } catch (err) {
-        cb.checked = !cb.checked;
+        cb.checked = !joining;
+        row.classList.toggle('is-selected', !joining);
+        showErrorMessage(err instanceof TypeError ? 'Nätverksfel – anmälan sparades inte. Försök igen.' : err.message);
+      } finally {
+        row.classList.remove('is-pending');
+        cb.disabled = false;
       }
     });
   });
@@ -643,6 +711,11 @@ function updateAdminSessionUI(session) {
   const registerBlock = document.getElementById('admin-register-result');
 
   if (btnGenerate) btnGenerate.disabled = count < MIN_PLAYERS_FOR_TEAMS;
+  const hint = document.getElementById('generate-hint');
+  if (hint) {
+    const missing = MIN_PLAYERS_FOR_TEAMS - count;
+    hint.textContent = missing > 0 ? `Minst ${MIN_PLAYERS_FOR_TEAMS} anmälda krävs – ${missing} till.` : '';
+  }
   if (registerBlock) registerBlock.classList.toggle('hidden', !hasGenerated);
 }
 
@@ -667,12 +740,55 @@ async function loadAndRender() {
     window._lastSession = session;
   } catch (err) {
     console.error(err);
-    document.getElementById('ranking-body').innerHTML =
-      '<tr><td colspan="10" class="col-num">Kunde inte ladda data. Kontrollera att servern körs.</td></tr>';
+    renderLoadError();
   }
 }
 
+function renderLoadError() {
+  const body = document.getElementById('ranking-body');
+  const msg =
+    '<div class="load-error"><p>Kunde inte ladda data. Kontrollera anslutningen och försök igen.</p>' +
+    '<button type="button" class="btn btn-primary" data-retry>Försök igen</button></div>';
+  body.innerHTML = body.tagName === 'TBODY' ? '<tr><td colspan="11">' + msg + '</td></tr>' : '<li class="rank-message">' + msg + '</li>';
+  body.removeAttribute('aria-busy');
+  showErrorMessage('Kunde inte ladda data.');
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-retry]')) loadAndRender();
+});
+
+const VIEWS = ['tabell', 'anmalan', 'historik', 'admin'];
+
+function showView(name) {
+  if (!VIEWS.includes(name) || (name === 'admin' && !getAdminToken())) name = 'tabell';
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('hidden', v.dataset.view !== name));
+  document.querySelectorAll('.view-tab').forEach((t) => {
+    const on = t.dataset.view === name;
+    t.setAttribute('aria-selected', on);
+    t.tabIndex = on ? 0 : -1;
+  });
+  document.body.dataset.view = name;
+  if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+  window.scrollTo(0, 0);
+}
+
+document.querySelectorAll('.view-tab').forEach((t) => {
+  t.addEventListener('click', () => showView(t.dataset.view));
+  t.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const tabs = [...document.querySelectorAll('.view-tab')].filter((x) => x.offsetParent);
+    const next = tabs[(tabs.indexOf(t) + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    next.focus();
+    showView(next.dataset.view);
+  });
+});
+window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+showView(location.hash.slice(1) || 'tabell');
+
 function toggleAdminSection(show) {
+  document.body.classList.toggle('is-admin', !!show);
+  if (!show && document.body.dataset.view === 'admin') showView('tabell');
   const section = document.getElementById('admin-section');
   const logoutBtn = document.getElementById('btn-logout');
   const adminBtn = document.getElementById('btn-admin');
@@ -693,6 +809,7 @@ function toggleAdminSection(show) {
 // —— Login ——
 document.getElementById('btn-admin').addEventListener('click', () => {
   document.getElementById('login-modal').classList.remove('hidden');
+  document.getElementById('password').focus();
 });
 
 document.getElementById('btn-close-login').addEventListener('click', () => {
@@ -722,12 +839,13 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       document.getElementById('password').value = '';
       toggleAdminSection(true);
       loadAndRender();
+      showSuccessMessage('Inloggad som admin');
     } else {
-      alert(data.error || 'Felaktigt lösenord');
+      showErrorMessage(data.error || 'Felaktigt lösenord');
       document.getElementById('password').value = '';
     }
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
@@ -770,10 +888,10 @@ document.getElementById('edit-stats-form').addEventListener('submit', async (e) 
       showSuccessMessage('Statistik sparad');
       loadAndRender();
     } else {
-      alert(data.error || 'Kunde inte spara');
+      showErrorMessage(data.error || 'Kunde inte spara');
     }
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
@@ -794,6 +912,7 @@ async function checkAuthOnLoad() {
     });
     if (res.ok) {
       toggleAdminSection(true);
+      if (location.hash === '#admin') showView('admin');
       loadAndRender();
     } else {
       setAdminToken(null);
@@ -824,7 +943,7 @@ document.getElementById('btn-save-match').addEventListener('click', async () => 
     drawIds = Array.from(document.querySelectorAll('#draw-checkboxes input:checked'))
       .map((cb) => parseInt(cb.dataset.playerId, 10));
     if (drawIds.length === 0) {
-      alert('Välj minst en spelare i matchen vid oavgjort.');
+      showErrorMessage('Välj minst en spelare i matchen vid oavgjort.');
       return;
     }
   } else {
@@ -833,12 +952,12 @@ document.getElementById('btn-save-match').addEventListener('click', async () => 
     loserIds = Array.from(document.querySelectorAll('#losers-checkboxes input:checked'))
       .map((cb) => parseInt(cb.dataset.playerId, 10));
     if (winnerIds.length === 0 || loserIds.length === 0) {
-      alert('Välj minst en vinnare och minst en förlorare.');
+      showErrorMessage('Välj minst en vinnare och minst en förlorare.');
       return;
     }
     const overlap = winnerIds.filter((id) => loserIds.includes(id));
     if (overlap.length > 0) {
-      alert('En spelare kan inte vara både vinnare och förlorare.');
+      showErrorMessage('En spelare kan inte vara både vinnare och förlorare.');
       return;
     }
   }
@@ -851,7 +970,7 @@ document.getElementById('btn-save-match').addEventListener('click', async () => 
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || 'Kunde inte spara match');
+      showErrorMessage(data.error || 'Kunde inte spara match');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -874,7 +993,7 @@ document.getElementById('btn-save-match').addEventListener('click', async () => 
       saveBtn.classList.remove('btn-success');
     }, 2000);
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
@@ -883,7 +1002,7 @@ document.getElementById('btn-add-player').addEventListener('click', async () => 
   const input = document.getElementById('new-player-name');
   const name = (input.value || '').trim();
   if (!name) {
-    alert('Ange ett namn.');
+    showErrorMessage('Ange ett namn.');
     return;
   }
   try {
@@ -894,7 +1013,7 @@ document.getElementById('btn-add-player').addEventListener('click', async () => 
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || 'Kunde inte lägga till spelare');
+      showErrorMessage(data.error || 'Kunde inte lägga till spelare');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -904,7 +1023,7 @@ document.getElementById('btn-add-player').addEventListener('click', async () => 
     input.value = '';
     await loadAndRender();
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
@@ -913,7 +1032,7 @@ document.getElementById('btn-delete-player').addEventListener('click', async () 
   const select = document.getElementById('player-to-delete');
   const playerId = select.value;
   if (!playerId) {
-    alert('Välj en spelare att ta bort.');
+    showErrorMessage('Välj en spelare att ta bort.');
     return;
   }
   
@@ -929,7 +1048,7 @@ document.getElementById('btn-delete-player').addEventListener('click', async () 
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || 'Kunde inte ta bort spelare');
+      showErrorMessage(data.error || 'Kunde inte ta bort spelare');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -939,7 +1058,7 @@ document.getElementById('btn-delete-player').addEventListener('click', async () 
     select.value = '';
     await loadAndRender();
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
@@ -963,7 +1082,7 @@ document.getElementById('btn-export-stats').addEventListener('click', async () =
       } catch (_) {
         if (text) msg = msg + ' (status ' + res.status + ')';
       }
-      alert(msg);
+      showErrorMessage(msg);
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -980,7 +1099,7 @@ document.getElementById('btn-export-stats').addEventListener('click', async () =
     URL.revokeObjectURL(url);
     showSuccessMessage('Data exporterad! Filen laddades ner.');
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -1005,7 +1124,7 @@ document.getElementById('import-file-input').addEventListener('change', async (e
     try {
       data = JSON.parse(text);
     } catch (err) {
-      alert('Ogiltig JSON-fil: ' + err.message);
+      showErrorMessage('Ogiltig JSON-fil: ' + err.message);
       return;
     }
     const res = await fetch(API + '/import', {
@@ -1015,7 +1134,7 @@ document.getElementById('import-file-input').addEventListener('change', async (e
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(result.error || 'Kunde inte importera');
+      showErrorMessage(result.error || 'Kunde inte importera');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -1025,7 +1144,7 @@ document.getElementById('import-file-input').addEventListener('change', async (e
     showSuccessMessage(`Data importerad! ${result.playersCount || 0} spelare, ${result.matchesCount || 0} matcher.`);
     await loadAndRender();
   } catch (err) {
-    alert('Nätverksfel eller fel vid läsning av fil. Försök igen.');
+    showErrorMessage('Nätverksfel eller fel vid läsning av fil. Försök igen.');
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -1051,7 +1170,7 @@ document.getElementById('btn-clear-stats').addEventListener('click', async () =>
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || 'Kunde inte rensa statistik');
+      showErrorMessage(data.error || 'Kunde inte rensa statistik');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -1066,7 +1185,7 @@ document.getElementById('btn-clear-stats').addEventListener('click', async () =>
     document.getElementById('btn-clear-stats').classList.add('hidden');
     document.getElementById('btn-undo-clear').classList.remove('hidden');
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
@@ -1083,12 +1202,12 @@ document.getElementById('btn-undo-clear').addEventListener('click', async () => 
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || 'Kunde inte återställa matcher');
+      showErrorMessage(data.error || 'Kunde inte återställa matcher');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
       } else if (res.status === 404) {
-        alert('Ingen backup att återställa. Matcherna är redan borta.');
+        showErrorMessage('Ingen backup att återställa. Matcherna är redan borta.');
         document.getElementById('btn-clear-stats').classList.remove('hidden');
         document.getElementById('btn-undo-clear').classList.add('hidden');
       }
@@ -1102,21 +1221,28 @@ document.getElementById('btn-undo-clear').addEventListener('click', async () => 
     document.getElementById('btn-clear-stats').classList.remove('hidden');
     document.getElementById('btn-undo-clear').classList.add('hidden');
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
 // —— Dark mode ——
 function getTheme() {
-  return localStorage.getItem('unknown-talents-theme') || 'light';
+  let stored = null;
+  try { stored = localStorage.getItem('unknown-talents-theme'); } catch (e) {}
+  return stored || document.documentElement.getAttribute('data-theme') || 'light';
 }
 
-function setTheme(theme) {
-  localStorage.setItem('unknown-talents-theme', theme);
+function setTheme(theme, persist = true) {
+  if (persist) {
+    try { localStorage.setItem('unknown-talents-theme', theme); } catch (e) {}
+  }
   document.documentElement.setAttribute('data-theme', theme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--header-bg').trim() || '#ebeae7');
   const themeBtn = document.getElementById('btn-theme');
   if (themeBtn) {
     themeBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    themeBtn.setAttribute('aria-label', theme === 'dark' ? 'Byt till ljust läge' : 'Byt till mörkt läge');
   }
 }
 
@@ -1127,7 +1253,7 @@ function toggleTheme() {
 }
 
 // Initiera tema vid laddning
-setTheme(getTheme());
+setTheme(getTheme(), false);
 
 document.getElementById('btn-theme').addEventListener('click', toggleTheme);
 
@@ -1150,10 +1276,10 @@ document.getElementById('btn-admin-generate-teams').addEventListener('click', as
       updateAdminSessionUI(window._lastSession);
       showSuccessMessage('Lag genererade!');
     } else {
-      alert(data.error || 'Kunde inte generera lag');
+      showErrorMessage(data.error || 'Kunde inte generera lag');
     }
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   } finally {
     btn.disabled = (window._lastSession?.playerIds?.length || 0) < MIN_PLAYERS_FOR_TEAMS;
     btn.textContent = 'Generera lag';
@@ -1172,10 +1298,10 @@ document.getElementById('btn-admin-clear-session').addEventListener('click', asy
       showSuccessMessage('Session rensad');
     } else {
       const data = await res.json().catch(() => ({}));
-      alert(data.error || 'Kunde inte rensa');
+      showErrorMessage(data.error || 'Kunde inte rensa');
     }
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
@@ -1197,10 +1323,10 @@ document.getElementById('btn-register-team-a-won').addEventListener('click', asy
       showSuccessMessage(SESSION_RESULT_TOAST);
       await loadAndRender();
     } else {
-      alert(data.error || 'Kunde inte registrera');
+      showErrorMessage(data.error || 'Kunde inte registrera');
     }
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
@@ -1212,10 +1338,10 @@ document.getElementById('btn-register-team-b-won').addEventListener('click', asy
       showSuccessMessage(SESSION_RESULT_TOAST);
       await loadAndRender();
     } else {
-      alert(data.error || 'Kunde inte registrera');
+      showErrorMessage(data.error || 'Kunde inte registrera');
     }
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
@@ -1228,7 +1354,7 @@ document.getElementById('btn-payments-export')?.addEventListener('click', async 
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert(data.error || 'Kunde inte exportera betalningar');
+      showErrorMessage(data.error || 'Kunde inte exportera betalningar');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -1245,26 +1371,8 @@ document.getElementById('btn-payments-export')?.addEventListener('click', async 
     a.remove();
     URL.revokeObjectURL(url);
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
-});
-
-// —— Matchanmälan accordion ——
-document.getElementById('session-toggle').addEventListener('click', () => {
-  const toggle = document.getElementById('session-toggle');
-  const content = document.getElementById('session-content');
-  const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
-  toggle.setAttribute('aria-expanded', !isExpanded);
-  content.classList.toggle('hidden', isExpanded);
-});
-
-// —— Info accordion (endast på startsidan; döljs när admin är inloggad) ——
-document.getElementById('match-history-toggle').addEventListener('click', () => {
-  const toggle = document.getElementById('match-history-toggle');
-  const content = document.getElementById('match-history-content');
-  const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
-  toggle.setAttribute('aria-expanded', !isExpanded);
-  content.classList.toggle('hidden', isExpanded);
 });
 
 document.getElementById('match-history-more').addEventListener('click', () => {
@@ -1280,12 +1388,12 @@ document.getElementById('match-history-list')?.addEventListener('click', (e) => 
 async function deleteLatestMatch() {
   const data = window._lastData;
   if (!data || !data.matches || data.matches.length === 0) {
-    alert('Ingen match att radera.');
+    showErrorMessage('Ingen match att radera.');
     return;
   }
   const sorted = (data.matches || []).filter((m) => m.date).sort((a, b) => (b.date < a.date ? -1 : b.date > a.date ? 1 : 0));
   if (sorted.length === 0) {
-    alert('Ingen match att radera.');
+    showErrorMessage('Ingen match att radera.');
     return;
   }
   if (
@@ -1302,7 +1410,7 @@ async function deleteLatestMatch() {
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(result.error || 'Kunde inte radera match');
+      showErrorMessage(result.error || 'Kunde inte radera match');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -1312,7 +1420,7 @@ async function deleteLatestMatch() {
     await loadAndRender();
     showSuccessMessage('Senaste matchen är borttagen. Statistik uppdaterad.');
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 }
 
@@ -1333,19 +1441,19 @@ document.getElementById('edit-latest-match-save')?.addEventListener('click', asy
   if (isDraw) {
     drawIds = Array.from(document.querySelectorAll('#edit-match-draw-checkboxes input:checked')).map((cb) => parseInt(cb.dataset.playerId, 10));
     if (drawIds.length === 0) {
-      alert('Välj minst en spelare i matchen vid oavgjort.');
+      showErrorMessage('Välj minst en spelare i matchen vid oavgjort.');
       return;
     }
   } else {
     winnerIds = Array.from(document.querySelectorAll('#edit-match-winners-checkboxes input:checked')).map((cb) => parseInt(cb.dataset.playerId, 10));
     loserIds = Array.from(document.querySelectorAll('#edit-match-losers-checkboxes input:checked')).map((cb) => parseInt(cb.dataset.playerId, 10));
     if (winnerIds.length === 0 || loserIds.length === 0) {
-      alert('Välj minst en vinnare och minst en förlorare.');
+      showErrorMessage('Välj minst en vinnare och minst en förlorare.');
       return;
     }
     const overlap = winnerIds.filter((id) => loserIds.includes(id));
     if (overlap.length > 0) {
-      alert('En spelare kan inte vara både vinnare och förlorare.');
+      showErrorMessage('En spelare kan inte vara både vinnare och förlorare.');
       return;
     }
   }
@@ -1357,7 +1465,7 @@ document.getElementById('edit-latest-match-save')?.addEventListener('click', asy
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(result.error || 'Kunde inte uppdatera match');
+      showErrorMessage(result.error || 'Kunde inte uppdatera match');
       if (res.status === 401) {
         setAdminToken(null);
         toggleAdminSection(false);
@@ -1368,7 +1476,7 @@ document.getElementById('edit-latest-match-save')?.addEventListener('click', asy
     await loadAndRender();
     showSuccessMessage('Senaste matchen är uppdaterad.');
   } catch (err) {
-    alert('Nätverksfel. Försök igen.');
+    showErrorMessage('Nätverksfel. Försök igen.');
   }
 });
 
@@ -1395,6 +1503,32 @@ document.querySelectorAll('.admin-accordion-toggle').forEach((btn) => {
     btn.setAttribute('aria-expanded', !isExpanded);
     content.classList.toggle('hidden', isExpanded);
   });
+});
+
+// —— Modaler: Esc och klick utanför stänger ——
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.querySelectorAll('.modal:not(.hidden)').forEach((m) => m.classList.add('hidden'));
+});
+document.querySelectorAll('.modal').forEach((m) => {
+  m.addEventListener('click', (e) => {
+    if (e.target === m) m.classList.add('hidden');
+  });
+});
+
+// —— Ranking: tryck på spelare öppnar bottenark ——
+document.getElementById('ranking-body').addEventListener('click', (e) => {
+  const item = e.target.closest('.rank-item[data-player-id]');
+  if (item) openPlayerSheet(parseInt(item.dataset.playerId, 10));
+});
+document.getElementById('ranking-body').addEventListener('keydown', (e) => {
+  const item = e.target.closest('.rank-item[data-player-id]');
+  if (item && (e.key === 'Enter' || e.key === ' ')) {
+    e.preventDefault();
+    openPlayerSheet(parseInt(item.dataset.playerId, 10));
+  }
+});
+document.getElementById('btn-close-player-sheet').addEventListener('click', () => {
+  document.getElementById('player-sheet').classList.add('hidden');
 });
 
 // Start

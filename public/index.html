@@ -4,19 +4,39 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>unknown-talents – Inomhusfotboll</title>
+  <meta name="theme-color" content="#f5f4f2">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/mobile.css">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('unknown-talents-theme'); } catch (e) {}
+      if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
 </head>
 <body>
   <header class="header">
     <h1 class="logo">unknown-talents</h1>
     <div class="header-actions">
       <button type="button" class="btn-icon" id="btn-theme" title="Växla tema" aria-label="Växla tema">🌙</button>
-      <button type="button" class="btn-icon hidden" id="btn-logout" title="Logga ut" aria-label="Logga ut">❌</button>
+      <button type="button" class="btn-icon btn-text hidden" id="btn-logout">Logga ut</button>
       <button type="button" class="btn-icon" id="btn-admin" title="Admin / inloggning" aria-label="Admin">🔐</button>
     </div>
   </header>
 
+  <nav class="view-tabs" aria-label="Vyer">
+    <div class="view-tabs-inner" role="tablist">
+      <button type="button" class="view-tab" role="tab" data-view="tabell" aria-selected="true"><span class="view-tab-label">Tabell</span></button>
+      <button type="button" class="view-tab" role="tab" data-view="anmalan" aria-selected="false"><span class="view-tab-label">Anmälan</span> <span class="view-tab-badge" id="tab-session-count">–</span></button>
+      <button type="button" class="view-tab" role="tab" data-view="historik" aria-selected="false"><span class="view-tab-label">Historik</span></button>
+      <button type="button" class="view-tab admin-only" role="tab" data-view="admin" aria-selected="false"><span class="view-tab-label">Admin</span></button>
+    </div>
+  </nav>
+
   <main class="main">
+    <div class="view" data-view="tabell">
     <section class="highscore-section">
       <div class="highscore-card">
         <h2 class="highscore-title">🏆 Highscore</h2>
@@ -44,75 +64,15 @@
           <span class="matches-label">matcher</span>
         </div>
       </div>
-      <div class="table-wrap">
-        <table class="ranking-table" id="ranking-table">
-          <thead>
-            <tr>
-              <th scope="col">#</th>
-              <th scope="col">Spelare</th>
-              <th scope="col">W</th>
-              <th scope="col">L</th>
-              <th scope="col">D</th>
-              <th scope="col"><span class="col-matcher-long">Matcher</span><span class="col-matcher-short">M</span></th>
-              <th scope="col"><span class="col-pct-long">Vinst %</span><span class="col-pct-short">%</span></th>
-              <th scope="col">Streak</th>
-              <th scope="col">Senaste 3</th>
-              <th scope="col" class="admin-col hidden" id="th-admin">Redigera</th>
-            </tr>
-          </thead>
-          <tbody id="ranking-body">
-            <!-- Fylls med JavaScript -->
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="session-section" id="session-section">
-      <button type="button" class="accordion-toggle" id="session-toggle" aria-expanded="false" aria-controls="session-content">
-        <span>⚽ Matchanmälan</span>
-        <span class="accordion-icon" aria-hidden="true">▼</span>
-      </button>
-      <div class="accordion-content hidden" id="session-content">
-        <div class="session-card">
-          <div class="session-status">
-            <span class="session-count" id="session-count">0 / 10 spelare anmälda</span>
-            <span class="session-ready-badge hidden" id="session-ready-badge" title="Minst 10 spelare – redo att generera lag"><span class="session-ready-icon">✓</span></span>
-          </div>
-          <div class="session-players" id="session-players">
-            <!-- Fylls med checkboxes per spelare -->
-          </div>
-          <div class="teams-result hidden" id="teams-result">
-            <div class="teams-result-header">
-              <span class="teams-spikade-badge">Spikade</span>
-              <h3 class="teams-strategy-title" id="teams-strategy-title">Strategi: random</h3>
-            </div>
-            <div class="teams-cards">
-              <div class="team-card team-card-a">
-                <div class="team-card-title">Lag A</div>
-                <ul class="team-card-list" id="team-a-list"></ul>
-              </div>
-              <div class="team-card team-card-b">
-                <div class="team-card-title">Lag B</div>
-                <ul class="team-card-list" id="team-b-list"></ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="match-history-section" id="match-history-section">
-      <button type="button" class="accordion-toggle" id="match-history-toggle" aria-expanded="false">
-        <span> 📊 Matchhistorik</span>
-        <span class="accordion-icon">▼</span>
-      </button>
-      <div class="accordion-content hidden" id="match-history-content">
-        <p class="match-history-count" id="match-history-count" aria-live="polite"></p>
-        <div class="match-history-list" id="match-history-list">
-          <!-- Fylls med JS -->
-        </div>
-        <button type="button" class="btn btn-secondary match-history-more hidden" id="match-history-more">Visa fler matcher</button>
-      </div>
+      <ol class="rank-list" id="ranking-body" aria-busy="true" aria-label="Ranking">
+        <li class="rank-item skeleton-row"><span class="skeleton"></span></li>
+        <li class="rank-item skeleton-row"><span class="skeleton"></span></li>
+        <li class="rank-item skeleton-row"><span class="skeleton"></span></li>
+        <li class="rank-item skeleton-row"><span class="skeleton"></span></li>
+        <li class="rank-item skeleton-row"><span class="skeleton"></span></li>
+        <li class="rank-item skeleton-row"><span class="skeleton"></span></li>
+      </ol>
+      <p class="table-hint">Tryck på en spelare för all statistik.</p>
     </section>
 
     <section class="info-section" id="info-section">
@@ -170,11 +130,43 @@
         </div>
       </div>
     </section>
+    </div>
 
-    <section class="admin-section hidden" id="admin-section">
-      <h2>Admin</h2>
-      <div class="admin-card admin-session-card">
-        <h3>Session &amp; lag</h3>
+    <div class="view hidden" data-view="anmalan">
+    <section class="session-section" id="session-section">
+      <h2 class="view-title">Matchanmälan</h2>
+      <div id="session-content">
+        <div class="session-card">
+          <div class="session-status">
+            <span class="session-count" id="session-count">– / 10 spelare anmälda</span>
+            <span class="session-ready-badge hidden" id="session-ready-badge" title="Minst 10 spelare – redo att generera lag"><span class="session-ready-icon">✓</span></span>
+          </div>
+          <div class="session-progress" aria-hidden="true"><div class="session-progress-bar" id="session-progress-bar"></div></div>
+          <p class="session-help">Tryck på ditt namn för att anmäla dig. Tryck igen för att avanmäla.</p>
+          <div class="session-players" id="session-players" aria-busy="true">
+            <div class="session-player skeleton-row"><span class="skeleton"></span></div>
+            <div class="session-player skeleton-row"><span class="skeleton"></span></div>
+            <div class="session-player skeleton-row"><span class="skeleton"></span></div>
+          </div>
+          <div class="teams-result hidden" id="teams-result">
+            <div class="teams-result-header">
+              <span class="teams-spikade-badge">Spikade</span>
+              <h3 class="teams-strategy-title" id="teams-strategy-title">Strategi: random</h3>
+            </div>
+            <div class="teams-cards">
+              <div class="team-card team-card-a">
+                <div class="team-card-title">Lag A</div>
+                <ul class="team-card-list" id="team-a-list"></ul>
+              </div>
+              <div class="team-card team-card-b">
+                <div class="team-card-title">Lag B</div>
+                <ul class="team-card-list" id="team-b-list"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      <div class="admin-card admin-session-card admin-only">
+        <h3>Lag &amp; resultat <span class="admin-tag">Admin</span></h3>
         <label class="session-strategy-label">
           Strategi för lagindelning:
           <select id="admin-session-strategy">
@@ -186,15 +178,37 @@
           </select>
         </label>
         <div class="admin-session-actions">
-          <button type="button" class="btn btn-primary" id="btn-admin-generate-teams" disabled>Generera lag</button>
+          <button type="button" class="btn btn-primary" id="btn-admin-generate-teams" disabled aria-describedby="generate-hint">Generera lag</button>
           <button type="button" class="btn btn-secondary" id="btn-admin-clear-session">Rensa session</button>
         </div>
+        <p class="btn-hint" id="generate-hint"></p>
         <div class="admin-register-result hidden" id="admin-register-result">
           <span class="register-result-label">Registrera matchresultat:</span>
           <button type="button" class="btn btn-success" id="btn-register-team-a-won">Lag A vann</button>
           <button type="button" class="btn btn-success" id="btn-register-team-b-won">Lag B vann</button>
         </div>
       </div>
+      </div>
+    </section>
+    </div>
+
+    <div class="view hidden" data-view="historik">
+    <section class="match-history-section" id="match-history-section">
+      <h2 class="view-title">Matchhistorik</h2>
+      <div id="match-history-content">
+        <p class="match-history-count" id="match-history-count" aria-live="polite"></p>
+        <div class="match-history-list" id="match-history-list" aria-busy="true">
+          <div class="match-history-item skeleton-row"><span class="skeleton"></span></div>
+          <div class="match-history-item skeleton-row"><span class="skeleton"></span></div>
+        </div>
+        <button type="button" class="btn btn-secondary match-history-more hidden" id="match-history-more">Visa fler matcher</button>
+      </div>
+    </section>
+    </div>
+
+    <div class="view hidden" data-view="admin">
+    <section class="admin-section hidden" id="admin-section">
+      <h2 class="view-title">Admin</h2>
       <div class="admin-card admin-accordion">
         <button type="button" class="accordion-toggle admin-accordion-toggle" id="admin-accordion-register-match" aria-expanded="false">
           <span>Registrera match</span>
@@ -319,10 +333,23 @@
         </div>
       </div>
     </section>
+    </div>
   </main>
 
+  <div class="toast-region" id="toast-region" aria-live="polite"></div>
+
+  <!-- Bottenark: spelardetaljer -->
+  <div class="modal sheet hidden" id="player-sheet" role="dialog" aria-modal="true" aria-labelledby="player-sheet-title">
+    <div class="modal-content sheet-content">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <h2 id="player-sheet-title">Spelare</h2>
+      <div id="player-sheet-body"></div>
+      <button type="button" class="btn btn-close-modal" id="btn-close-player-sheet">Stäng</button>
+    </div>
+  </div>
+
   <!-- Modal: inloggning -->
-  <div class="modal hidden" id="login-modal" role="dialog" aria-labelledby="login-title">
+  <div class="modal hidden" id="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
     <div class="modal-content">
       <h2 id="login-title">Admin-inloggning</h2>
       <p class="hint">Ange lösenord för att registrera matcher och hantera spelare.</p>
@@ -336,7 +363,7 @@
   </div>
 
   <!-- Modal: redigera senaste match (admin) -->
-  <div class="modal hidden" id="edit-latest-match-modal" role="dialog" aria-labelledby="edit-latest-match-title">
+  <div class="modal hidden" id="edit-latest-match-modal" role="dialog" aria-modal="true" aria-labelledby="edit-latest-match-title">
     <div class="modal-content">
       <h2 id="edit-latest-match-title">Redigera senaste match</h2>
       <p class="hint">Ändra vilka som var vinnare/förlorare (eller spelare i oavgjorten). Statistiken uppdateras automatiskt.</p>
@@ -360,7 +387,7 @@
   </div>
 
   <!-- Modal: redigera statistik (admin) -->
-  <div class="modal hidden" id="edit-stats-modal" role="dialog" aria-labelledby="edit-stats-title">
+  <div class="modal hidden" id="edit-stats-modal" role="dialog" aria-modal="true" aria-labelledby="edit-stats-title">
     <div class="modal-content">
       <h2 id="edit-stats-title">Redigera statistik</h2>
       <p class="hint">Ändra vinster, förluster och oavgjort för spelaren. Påverkar endast denna spelare.</p>
