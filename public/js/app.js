@@ -159,6 +159,53 @@ function rankPlayers(players, statsById) {
   return [...withEnough, ...notEnough];
 }
 
+/** Vald säsong i tabellen: ett årtal (nummer) eller 'all'. Standard är innevarande år. */
+let selectedSeason = new Date().getFullYear();
+
+function matchYear(m) {
+  const d = m.date ? new Date(m.date) : null;
+  return d && !isNaN(d.getTime()) ? d.getFullYear() : null;
+}
+
+/** Första säsongen i appen = året för den äldsta registrerade matchen. */
+function firstSeasonYear(matches) {
+  const years = matches.map(matchYear).filter((y) => y !== null);
+  return years.length ? Math.min(...years) : new Date().getFullYear();
+}
+
+/** År som går att välja: alla år med matcher plus innevarande år, nyast först. */
+function availableSeasons(matches) {
+  const years = new Set(matches.map(matchYear).filter((y) => y !== null));
+  years.add(new Date().getFullYear());
+  return [...years].sort((a, b) => b - a);
+}
+
+/**
+ * Statistik för vald säsong.
+ * 'all' = spelarnas sparade totaler (som tidigare).
+ * Ett år = räknas fram ur årets matcher. Handinlagd statistik (skillnaden mellan sparade
+ * totaler och registrerade matcher) och prefixWinStreak hör till första säsongen, eftersom
+ * de lades in för matcher som spelades innan appen användes.
+ */
+function computeSeasonStats(players, matches, season) {
+  if (season === 'all') return { statsById: computeStats(players, matches), matches };
+  const seasonMatches = matches.filter((m) => matchYear(m) === season);
+  const isFirstSeason = season === firstSeasonYear(matches);
+  const fromAll = computeStats(players.map((p) => ({ id: p.id })), matches);
+  const fromSeason = computeStats(players.map((p) => ({ id: p.id })), seasonMatches);
+  const seasonPlayers = players.map((p) => {
+    const extra = (key) => (isFirstSeason ? (p[key] ?? 0) - fromAll[p.id][key] : 0);
+    return {
+      ...p,
+      wins: Math.max(0, fromSeason[p.id].wins + extra('wins')),
+      losses: Math.max(0, fromSeason[p.id].losses + extra('losses')),
+      draws: Math.max(0, fromSeason[p.id].draws + extra('draws')),
+      prefixWinStreak: isFirstSeason ? p.prefixWinStreak : 0,
+    };
+  });
+  return { statsById: computeStats(seasonPlayers, seasonMatches), matches: seasonMatches };
+}
+
 /**
  * Vid lika "poäng" (t.ex. flest vinster eller längsta vinststreak): högst vinstprocent,
  * därefter fler spelade matcher, därefter lägre spelar-id (stabilt).
@@ -294,7 +341,7 @@ function openPlayerSheet(playerId) {
     `<div><dt>Längsta vinststreak</dt><dd>${s.longestWinStreak || 0}</dd></div>` +
     `<div><dt>Senaste 3 <small>(nyast först)</small></dt><dd class="last-matches">${lastResultsHtml(s.lastResults) || '–'}</dd></div>` +
     '</dl>' +
-    (getAdminToken() ? editStatsButton(p, s, '✏️ Redigera statistik') : '');
+    (getAdminToken() ? editStatsButton(p, (window._allStats || statsById)[p.id], '✏️ Redigera statistik (totalt)') : '');
   bindEditStatsButtons(body);
   document.getElementById('player-sheet').classList.remove('hidden');
   document.getElementById('btn-close-player-sheet').focus();
@@ -472,19 +519,35 @@ function renderHighscore(players, statsById) {
   }
 }
 
-function renderSeasonInfo(matches) {
-  const currentYear = new Date().getFullYear();
-  const seasonEl = document.getElementById('season-year');
+function renderSeasonInfo(allMatches, seasonMatches) {
+  const select = document.getElementById('season-select');
+  const label = document.getElementById('season-label');
   const matchesEl = document.getElementById('matches-count');
-  
-  if (seasonEl) {
-    seasonEl.textContent = currentYear;
+
+  if (select) {
+    const options = availableSeasons(allMatches).map((y) => [String(y), String(y)]);
+    options.push(['all', 'Alla']);
+    select.innerHTML = options.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+    select.value = String(selectedSeason);
   }
-  
-  if (matchesEl) {
-    matchesEl.textContent = matches.length;
-  }
+  if (label) label.textContent = selectedSeason === 'all' ? 'säsonger' : 'Säsong';
+  if (matchesEl) matchesEl.textContent = seasonMatches.length;
 }
+
+/** Tabell, highscore och säsongsrubrik för vald säsong. */
+function renderStatsViews(data) {
+  window._allStats = computeStats(data.players, data.matches);
+  const { statsById, matches } = computeSeasonStats(data.players, data.matches, selectedSeason);
+  const ordered = rankPlayers(data.players, statsById);
+  renderRanking(data.players, statsById, ordered);
+  renderHighscore(data.players, statsById);
+  renderSeasonInfo(data.matches, matches);
+}
+
+document.getElementById('season-select').addEventListener('change', (e) => {
+  selectedSeason = e.target.value === 'all' ? 'all' : Number(e.target.value);
+  if (window._lastData) renderStatsViews(window._lastData);
+});
 
 const INITIAL_MATCH_HISTORY = 3;
 const MATCH_HISTORY_MORE = 5;
@@ -724,11 +787,7 @@ async function loadAndRender() {
   try {
     const [data, session] = await Promise.all([fetchStats(), fetchSession()]);
     window._matchHistoryVisible = INITIAL_MATCH_HISTORY;
-    const statsById = computeStats(data.players, data.matches);
-    const ordered = rankPlayers(data.players, statsById);
-    renderRanking(data.players, statsById, ordered);
-    renderHighscore(data.players, statsById);
-    renderSeasonInfo(data.matches);
+    renderStatsViews(data);
     renderMatchHistory(data.players, data.matches);
     renderSession(data.players, session);
     if (getAdminToken()) {

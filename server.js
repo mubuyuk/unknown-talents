@@ -184,16 +184,25 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+/** Jämförbar form av ett namn: utan extra mellanslag och oberoende av versaler. */
+function normalizeName(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('sv');
+}
+
 /** POST /api/players – lägg till spelare (admin) */
 app.post('/api/players', async (req, res) => {
   if (!isAdmin(req)) {
     return res.status(401).json({ error: 'Kräver inloggning' });
   }
-  const name = (req.body.name || '').trim();
+  const name = (req.body.name || '').trim().replace(/\s+/g, ' ');
   if (!name) {
     return res.status(400).json({ error: 'Namn krävs' });
   }
   try {
+    const existing = await Player.find().select('name').lean();
+    if (existing.some((p) => normalizeName(p.name) === normalizeName(name))) {
+      return res.status(409).json({ error: `Det finns redan en spelare som heter "${name}".` });
+    }
     const last = await Player.findOne().sort({ id: -1 }).select('id').lean();
     const maxId = last ? last.id : 0;
     const id = maxId + 1;
