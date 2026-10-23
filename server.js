@@ -763,30 +763,37 @@ app.post('/api/session/generate-teams', async (req, res) => {
   }
 });
 
-/** POST /api/session/register-result – registrera vinnande lag, skapa match, uppdatera statistik, rensa session (admin) */
+/** POST /api/session/register-result – registrera vinnande lag (A/B) eller oavgjort (DRAW), skapa match, uppdatera statistik, rensa session (admin) */
 app.post('/api/session/register-result', async (req, res) => {
   if (!isAdmin(req)) {
     return res.status(401).json({ error: 'Kräver inloggning' });
   }
-  const winner = (req.body.winner && String(req.body.winner).toUpperCase()) === 'B' ? 'B' : 'A';
+  const winner = String(req.body.winner || '').toUpperCase();
+  if (!['A', 'B', 'DRAW'].includes(winner)) {
+    return res.status(400).json({ error: 'Ogiltigt resultat. Ange A, B eller DRAW.' });
+  }
   if (!sessionGeneratedTeams) {
     return res.status(400).json({ error: 'Inga genererade lag. Generera lag först och registrera sedan resultat.' });
   }
   const { teamA, teamB } = sessionGeneratedTeams;
-  const winnerIds = winner === 'A' ? teamA.map((p) => p.id) : teamB.map((p) => p.id);
-  const loserIds = winner === 'A' ? teamB.map((p) => p.id) : teamA.map((p) => p.id);
+  const isDraw = winner === 'DRAW';
+  const winnerIds = isDraw ? [] : (winner === 'A' ? teamA : teamB).map((p) => p.id);
+  const loserIds = isDraw ? [] : (winner === 'A' ? teamB : teamA).map((p) => p.id);
+  const drawIds = isDraw ? [...teamA, ...teamB].map((p) => p.id) : [];
   try {
     const data = await readData();
-    const match = { winnerIds, loserIds, drawIds: [] };
+    const match = { winnerIds, loserIds, drawIds };
     const updatePlayer = (id, type) => {
       const player = data.players.find((p) => p.id === id);
       if (!player) return;
       const computed = computedStatsFromMatches(id, data.matches);
       if (type === 'win') player.wins = (player.wins ?? computed.w) + 1;
       else if (type === 'loss') player.losses = (player.losses ?? computed.l) + 1;
+      else if (type === 'draw') player.draws = (player.draws ?? computed.d) + 1;
     };
     winnerIds.forEach((id) => updatePlayer(id, 'win'));
     loserIds.forEach((id) => updatePlayer(id, 'loss'));
+    drawIds.forEach((id) => updatePlayer(id, 'draw'));
     await Match.create(match);
     for (const p of data.players) {
       await Player.updateOne(

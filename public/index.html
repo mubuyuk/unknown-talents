@@ -186,6 +186,7 @@
           <span class="register-result-label">Registrera matchresultat:</span>
           <button type="button" class="btn btn-success" id="btn-register-team-a-won">Lag A vann</button>
           <button type="button" class="btn btn-success" id="btn-register-team-b-won">Lag B vann</button>
+          <button type="button" class="btn btn-secondary" id="btn-register-draw">Oavgjort</button>
         </div>
       </div>
       </div>
@@ -345,6 +346,18 @@
       <h2 id="player-sheet-title">Spelare</h2>
       <div id="player-sheet-body"></div>
       <button type="button" class="btn btn-close-modal" id="btn-close-player-sheet">Stäng</button>
+    </div>
+  </div>
+
+  <!-- Modal: bekräfta matchresultat (admin) -->
+  <div class="modal hidden" id="confirm-result-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-result-title">
+    <div class="modal-content">
+      <h2 id="confirm-result-title">Spara resultat?</h2>
+      <div class="confirm-result-body" id="confirm-result-body"></div>
+      <div class="confirm-result-actions">
+        <button type="button" class="btn btn-secondary" id="btn-confirm-result-cancel">Avbryt</button>
+        <button type="button" class="btn btn-primary" id="btn-confirm-result-save">Spara resultat</button>
+      </div>
     </div>
   </div>
 

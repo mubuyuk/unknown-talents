@@ -579,6 +579,7 @@ async function renderPaymentsSummary() {
     }
     const matchCount = data.matchCount || 0;
     const totalAmount = data.totalAmount || 0;
+    if (data.pricePerMatch != null) window._matchPrice = data.pricePerMatch;
     if (priceEl && data.pricePerMatch != null) priceEl.textContent = data.pricePerMatch.toString();
     matchCountEl.textContent = matchCount.toString();
     totalEl.textContent = totalAmount.toFixed(2).replace('.', ',') + ' kr';
@@ -1314,27 +1315,66 @@ function registerSessionResult(winner) {
 }
 
 const SESSION_RESULT_TOAST = 'Match sparad! Statistik uppdaterad. Sessionen är klar.';
+let pendingSessionResult = null;
 
-document.getElementById('btn-register-team-a-won').addEventListener('click', async () => {
-  try {
-    const res = await registerSessionResult('A');
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      showSuccessMessage(SESSION_RESULT_TOAST);
-      await loadAndRender();
-    } else {
-      showErrorMessage(data.error || 'Kunde inte registrera');
-    }
-  } catch (err) {
-    showErrorMessage('Nätverksfel. Försök igen.');
+function formatKr(amount) {
+  return (Math.round(amount * 100) / 100).toString().replace('.', ',') + ' kr';
+}
+
+/** Visar en sammanfattning av resultatet innan det sparas */
+function openConfirmResult(result) {
+  const teams = window._lastSession && window._lastSession.generatedTeams;
+  if (!teams || !teams.teamA || !teams.teamB) {
+    showErrorMessage('Inga genererade lag. Generera lag först.');
+    return;
   }
-});
+  const names = (list) => list.map((p) => escapeHtml(p.name)).join(', ') || '–';
+  const price = window._matchPrice;
+  const payInfo = (count) =>
+    price ? ' betalar ' + formatKr(price) + ' (' + formatKr(price / count) + '/person)' : ' betalar';
+  let html;
+  if (result === 'DRAW') {
+    const all = [...teams.teamA, ...teams.teamB];
+    html =
+      '<p class="confirm-result-headline">Oavgjort</p>' +
+      '<p><strong>Alla ' + all.length + ' spelare</strong>' + payInfo(all.length) + ':</p>' +
+      '<p class="confirm-result-names">' + names(all) + '</p>';
+  } else {
+    const winners = result === 'A' ? teams.teamA : teams.teamB;
+    const losers = result === 'A' ? teams.teamB : teams.teamA;
+    const loserLabel = result === 'A' ? 'Lag B' : 'Lag A';
+    html =
+      '<p class="confirm-result-headline">Lag ' + result + ' vann</p>' +
+      '<p><strong>Vinnare:</strong></p><p class="confirm-result-names">' + names(winners) + '</p>' +
+      '<p><strong>' + loserLabel + '</strong>' + payInfo(losers.length) + ':</p>' +
+      '<p class="confirm-result-names">' + names(losers) + '</p>';
+  }
+  pendingSessionResult = result;
+  document.getElementById('confirm-result-body').innerHTML = html;
+  document.getElementById('confirm-result-modal').classList.remove('hidden');
+  document.getElementById('btn-confirm-result-save').focus();
+}
 
-document.getElementById('btn-register-team-b-won').addEventListener('click', async () => {
+function closeConfirmResult() {
+  pendingSessionResult = null;
+  document.getElementById('confirm-result-modal').classList.add('hidden');
+}
+
+document.getElementById('btn-register-team-a-won').addEventListener('click', () => openConfirmResult('A'));
+document.getElementById('btn-register-team-b-won').addEventListener('click', () => openConfirmResult('B'));
+document.getElementById('btn-register-draw').addEventListener('click', () => openConfirmResult('DRAW'));
+document.getElementById('btn-confirm-result-cancel').addEventListener('click', closeConfirmResult);
+
+document.getElementById('btn-confirm-result-save').addEventListener('click', async (e) => {
+  const result = pendingSessionResult;
+  if (!result) return;
+  const btn = e.currentTarget;
+  btn.disabled = true;
   try {
-    const res = await registerSessionResult('B');
+    const res = await registerSessionResult(result);
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
+      closeConfirmResult();
       showSuccessMessage(SESSION_RESULT_TOAST);
       await loadAndRender();
     } else {
@@ -1342,6 +1382,8 @@ document.getElementById('btn-register-team-b-won').addEventListener('click', asy
     }
   } catch (err) {
     showErrorMessage('Nätverksfel. Försök igen.');
+  } finally {
+    btn.disabled = false;
   }
 });
 

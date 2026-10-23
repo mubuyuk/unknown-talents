@@ -1021,3 +1021,29 @@ select {
     transition: none !important;
   }
 }
+
+/* Bekräfta matchresultat */
+.confirm-result-headline {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.confirm-result-body p {
+  margin: 0 0 0.35rem;
+}
+
+.confirm-result-names {
+  color: var(--text-muted);
+  margin-bottom: 0.75rem !important;
+}
+
+.confirm-result-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.confirm-result-actions .btn {
+  flex: 1 1 0;
+}
