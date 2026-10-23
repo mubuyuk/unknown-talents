@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>unknown-talents – Inomhusfotboll</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <h1 class="logo">unknown-talents</h1>
+    <div class="header-actions">
+      <button type="button" class="btn-icon" id="btn-theme" title="Växla tema" aria-label="Växla tema">🌙</button>
+      <button type="button" class="btn-icon hidden" id="btn-logout" title="Logga ut" aria-label="Logga ut">❌</button>
+      <button type="button" class="btn-icon" id="btn-admin" title="Admin / inloggning" aria-label="Admin">🔐</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="highscore-section">
+      <div class="highscore-card">
+        <h2 class="highscore-title">🏆 Highscore</h2>
+        <div class="highscore-items">
+          <div class="highscore-item">
+            <div class="highscore-label">Flest vinster</div>
+            <div class="highscore-value" id="most-wins">–</div>
+          </div>
+          <div class="highscore-item">
+            <div class="highscore-label">Längsta streak</div>
+            <div class="highscore-value" id="longest-streak">–</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ranking-section">
+      <div class="table-header">
+        <div class="season-info">
+          <span class="season-year" id="season-year">2026</span>
+          <span class="season-label">Säsong</span>
+        </div>
+        <div class="matches-count">
+          <span class="matches-number" id="matches-count">0</span>
+          <span class="matches-label">matcher</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="ranking-table" id="ranking-table">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Spelare</th>
+              <th scope="col">W</th>
+              <th scope="col">L</th>
+              <th scope="col">D</th>
+              <th scope="col"><span class="col-matcher-long">Matcher</span><span class="col-matcher-short">M</span></th>
+              <th scope="col"><span class="col-pct-long">Vinst %</span><span class="col-pct-short">%</span></th>
+              <th scope="col">Streak</th>
+              <th scope="col">Senaste 3</th>
+              <th scope="col" class="admin-col hidden" id="th-admin">Redigera</th>
+            </tr>
+          </thead>
+          <tbody id="ranking-body">
+            <!-- Fylls med JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="session-section" id="session-section">
+      <button type="button" class="accordion-toggle" id="session-toggle" aria-expanded="false" aria-controls="session-content">
+        <span>⚽ Matchanmälan</span>
+        <span class="accordion-icon" aria-hidden="true">▼</span>
+      </button>
+      <div class="accordion-content hidden" id="session-content">
+        <div class="session-card">
+          <div class="session-status">
+            <span class="session-count" id="session-count">0 / 10 spelare anmälda</span>
+            <span class="session-ready-badge hidden" id="session-ready-badge" title="Minst 10 spelare – redo att generera lag"><span class="session-ready-icon">✓</span></span>
+          </div>
+          <div class="session-players" id="session-players">
+            <!-- Fylls med checkboxes per spelare -->
+          </div>
+          <div class="teams-result hidden" id="teams-result">
+            <div class="teams-result-header">
+              <span class="teams-spikade-badge">Spikade</span>
+              <h3 class="teams-strategy-title" id="teams-strategy-title">Strategi: random</h3>
+            </div>
+            <div class="teams-cards">
+              <div class="team-card team-card-a">
+                <div class="team-card-title">Lag A</div>
+                <ul class="team-card-list" id="team-a-list"></ul>
+              </div>
+              <div class="team-card team-card-b">
+                <div class="team-card-title">Lag B</div>
+                <ul class="team-card-list" id="team-b-list"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="match-history-section" id="match-history-section">
+      <button type="button" class="accordion-toggle" id="match-history-toggle" aria-expanded="false">
+        <span> 📊 Matchhistorik</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content hidden" id="match-history-content">
+        <p class="match-history-count" id="match-history-count" aria-live="polite"></p>
+        <div class="match-history-list" id="match-history-list">
+          <!-- Fylls med JS -->
+        </div>
+        <button type="button" class="btn btn-secondary match-history-more hidden" id="match-history-more">Visa fler matcher</button>
+      </div>
+    </section>
+
+    <section class="info-section" id="info-section">
+      <button type="button" class="accordion-toggle" id="info-toggle" aria-expanded="false">
+        <span>💡 Så fungerar vinstprocent, ranking, streak och utmärkelser</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content hidden" id="info-content">
+        <div class="info-content-inner">
+          <h3>Vinstprocent</h3>
+          <p>Vinstprocenten bygger på vinster, förluster och oavgjort (från registrerade matcher, alternativt manuellt ifylld radstatistik om det används):</p>
+          <div class="formula">
+            <strong>Vinstprocent = (Vinster ÷ Antal spelade matcher) × 100</strong>
+          </div>
+          <p>Antal spelade matcher är summan av vinster, förluster och oavgjort.</p>
+          <p class="example">
+            <strong>Exempel:</strong> 8 vinster på 12 matcher totalt ger (8 ÷ 12) × 100 ≈ 67&nbsp;%.
+          </p>
+          <p class="note"><strong>Oavgjort räknas inte som vinst.</strong> En oavgjort räknas som spelad match men varken som vinst eller förlust i täljaren.</p>
+
+          <h3>Ranking i tabellen</h3>
+          <p>Sorteringen styr placering i tabellen. Den behöver inte vara densamma som vem som får 🏆 eller ⭐ (se nedan).</p>
+          <ol>
+            <li><strong>Spelare med minst 5 matcher</strong> visas överst:
+              <ul>
+                <li>Först efter <strong>vinstprocent</strong> (högst först)</li>
+                <li>Vid lika vinstprocent: efter <strong>antal matcher</strong> (fler spelade först)</li>
+              </ul>
+            </li>
+            <li><strong>Spelare med färre än 5 matcher</strong> visas under:
+              <ul>
+                <li>Först efter <strong>antal matcher</strong> (fler spelade först)</li>
+                <li>Vid lika antal matcher: efter <strong>vinstprocent</strong></li>
+              </ul>
+            </li>
+          </ol>
+          <p class="note"><strong>Varför 5 matcher?</strong> Med väldigt få matcher kan en hög procentsiffra lätt bli missvisande (t.ex. 100&nbsp;% efter en enda vinst).</p>
+
+          <h3>Flest vinster (🏆)</h3>
+          <p>Pokalen visas vid namnet för den som har <strong>flest vinster totalt</strong> (samma som kolumnen Vinster).</p>
+          <p>Om flera har lika många vinster vinner den med <strong>högst vinstprocent</strong>.</p>
+
+          <h3>Längsta vinststreak (⭐)</h3>
+          <p>Stjärnan går till den som har <strong>längst obruten följd av vinster</strong> i tidsordning genom historiken. Förlust eller oavgjort bryter vinstsviten. Spelare som inte var med i en match påverkas inte av den matchen.</p>
+          <p>Vid samma längd på längsta vinststreak används <strong>samma tiebreak som för pokalen</strong>: vinstprocent, sedan fler matcher, sedan lägst spelar-ID.</p>
+
+          <h3>Kolumnen Streak</h3>
+          <p>Här visas <strong>aktuell</strong> svit (senaste matcherna):</p>
+          <ul>
+            <li><strong>Två vinster i rad eller fler:</strong> tal + 🔥</li>
+            <li><strong>En vinst, oavgjort eller högst två raka förluster:</strong> — (neutralt)</li>
+            <li><strong>Tre raka förluster eller fler:</strong> negativt tal + 🥶</li>
+          </ul>
+          <p>De tre senaste bokstäverna (W/L/D) visar bara <strong>registrerade</strong> matcher, inte inledande vinststreak.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-section hidden" id="admin-section">
+      <h2>Admin</h2>
+      <div class="admin-card admin-session-card">
+        <h3>Session &amp; lag</h3>
+        <label class="session-strategy-label">
+          Strategi för lagindelning:
+          <select id="admin-session-strategy">
+            <option value="random">Slump (random)</option>
+            <option value="wins">Vinster (wins)</option>
+            <option value="winrate">Vinstprocent (winrate)</option>
+            <option value="streak">Streak (streak)</option>
+            <option value="elo">Elo (elo)</option>
+          </select>
+        </label>
+        <div class="admin-session-actions">
+          <button type="button" class="btn btn-primary" id="btn-admin-generate-teams" disabled>Generera lag</button>
+          <button type="button" class="btn btn-secondary" id="btn-admin-clear-session">Rensa session</button>
+        </div>
+        <div class="admin-register-result hidden" id="admin-register-result">
+          <span class="register-result-label">Registrera matchresultat:</span>
+          <button type="button" class="btn btn-success" id="btn-register-team-a-won">Lag A vann</button>
+          <button type="button" class="btn btn-success" id="btn-register-team-b-won">Lag B vann</button>
+        </div>
+      </div>
+      <div class="admin-card admin-accordion">
+        <button type="button" class="accordion-toggle admin-accordion-toggle" id="admin-accordion-register-match" aria-expanded="false">
+          <span>Registrera match</span>
+          <span class="accordion-icon">▼</span>
+        </button>
+        <div class="accordion-content hidden" id="admin-accordion-register-match-content">
+          <p class="hint">Kryssa i vilka som var vinnare respektive förlorare. Samma spelare kan inte vara både vinnare och förlorare.</p>
+          <label class="checkbox-label">
+            <input type="checkbox" id="match-draw" name="match-draw">
+            Matchen blev oavgjort
+          </label>
+          <div class="match-teams" id="match-teams">
+            <div class="team-column">
+              <span class="team-column-title">Vinnare</span>
+              <div id="winners-checkboxes" class="player-checkboxes"></div>
+            </div>
+            <div class="team-column">
+              <span class="team-column-title">Förlorare</span>
+              <div id="losers-checkboxes" class="player-checkboxes"></div>
+            </div>
+          </div>
+          <div class="match-draw-teams hidden" id="match-draw-teams">
+            <span class="team-column-title">Spelare i matchen</span>
+            <div id="draw-checkboxes" class="player-checkboxes"></div>
+          </div>
+          <div class="register-match-summary" id="register-match-summary" aria-live="polite">
+            <div class="register-summary-row" id="register-summary-winners-row"><strong>Vinnare:</strong> <span id="register-summary-winners">0 – </span></div>
+            <div class="register-summary-row" id="register-summary-losers-row"><strong>Förlorare:</strong> <span id="register-summary-losers">0 – </span></div>
+            <div class="register-summary-row hidden" id="register-summary-draw-row"><strong>Spelare i matchen:</strong> <span id="register-summary-draw">0 – </span></div>
+          </div>
+          <button type="button" class="btn btn-primary" id="btn-save-match">Spara match</button>
+        </div>
+      </div>
+      <div class="admin-card admin-accordion">
+        <button type="button" class="accordion-toggle admin-accordion-toggle" id="admin-accordion-add-player" aria-expanded="false">
+          <span>Lägg till spelare</span>
+          <span class="accordion-icon">▼</span>
+        </button>
+        <div class="accordion-content hidden" id="admin-accordion-add-player-content">
+          <div class="add-player-form">
+            <input type="text" id="new-player-name" placeholder="Namn" maxlength="50">
+            <button type="button" class="btn" id="btn-add-player">Lägg till</button>
+          </div>
+        </div>
+      </div>
+      <div class="admin-card admin-accordion">
+        <button type="button" class="accordion-toggle admin-accordion-toggle" id="admin-accordion-delete-player" aria-expanded="false">
+          <span>Ta bort spelare</span>
+          <span class="accordion-icon">▼</span>
+        </button>
+        <div class="accordion-content hidden" id="admin-accordion-delete-player-content">
+          <p class="hint">Välj en spelare att ta bort. Alla matcher där spelaren deltog behålls.</p>
+          <select id="player-to-delete" class="player-select">
+            <option value="">Välj spelare...</option>
+          </select>
+          <button type="button" class="btn btn-secondary" id="btn-delete-player" style="margin-top: 0.75rem;">Ta bort spelare</button>
+        </div>
+      </div>
+      <div class="admin-card admin-accordion">
+        <button type="button" class="accordion-toggle admin-accordion-toggle" id="admin-accordion-payments" aria-expanded="false">
+          <span>💰 Avgifter &amp; betalningar</span>
+          <span class="accordion-icon">▼</span>
+        </button>
+        <div class="accordion-content hidden" id="admin-accordion-payments-content">
+          <p class="hint">Planhyran är <span id="payments-price">–</span> kr per match. Vid vinst/förlust betalar förlorarlaget. Vid oavgjort delar alla spelare i matchen.</p>
+          <div class="payments-summary">
+            <div class="payments-summary-item">
+              <span class="payments-summary-label">Totalt matcher</span>
+              <span class="payments-summary-value" id="payments-match-count">–</span>
+            </div>
+            <div class="payments-summary-item">
+              <span class="payments-summary-label">Totalt planhyra</span>
+              <span class="payments-summary-value" id="payments-total-amount">–</span>
+            </div>
+          </div>
+          <div class="payments-actions">
+            <button type="button" class="btn btn-secondary" id="btn-payments-export">Exportera till Excel (CSV)</button>
+          </div>
+          <div class="payments-table-wrap">
+            <table class="payments-table">
+              <thead>
+                <tr>
+                  <th>Spelare</th>
+                  <th>Matcher (betalat)</th>
+                  <th>Totalt betalt</th>
+                </tr>
+              </thead>
+              <tbody id="payments-body">
+                <!-- Fylls med JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="admin-card admin-accordion">
+        <button type="button" class="accordion-toggle admin-accordion-toggle" id="admin-accordion-backup" aria-expanded="false">
+          <span>Backup – Export &amp; Import</span>
+          <span class="accordion-icon">▼</span>
+        </button>
+        <div class="accordion-content hidden" id="admin-accordion-backup-content">
+          <p class="hint">Exportera all data som JSON-fil (t.ex. innan deploy). Importera en tidigare export för att återställa efter deploy eller ny server.</p>
+          <div class="backup-actions">
+            <button type="button" class="btn btn-primary" id="btn-export-stats">📥 Exportera data</button>
+            <div class="import-wrap">
+              <input type="file" id="import-file-input" accept=".json,application/json" class="hidden">
+              <button type="button" class="btn btn-secondary" id="btn-import-stats">📤 Importera från fil</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="admin-card admin-accordion admin-card-warning">
+        <button type="button" class="accordion-toggle admin-accordion-toggle" id="admin-accordion-clear-stats" aria-expanded="false">
+          <span>Rensa statistik</span>
+          <span class="accordion-icon">▼</span>
+        </button>
+        <div class="accordion-content hidden" id="admin-accordion-clear-stats-content">
+          <p class="warning-text">⚠️ <strong>Varning:</strong> Detta kommer att ta bort alla matcher och återställa statistiken. Spelare behålls men alla matchresultat försvinner. Denna åtgärd kan ångras direkt efteråt.</p>
+          <div class="clear-actions">
+            <button type="button" class="btn btn-danger" id="btn-clear-stats">Rensa all statistik</button>
+            <button type="button" class="btn btn-success hidden" id="btn-undo-clear">Ångra rensning</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: inloggning -->
+  <div class="modal hidden" id="login-modal" role="dialog" aria-labelledby="login-title">
+    <div class="modal-content">
+      <h2 id="login-title">Admin-inloggning</h2>
+      <p class="hint">Ange lösenord för att registrera matcher och hantera spelare.</p>
+      <form id="login-form">
+        <label for="password">Lösenord</label>
+        <input type="password" id="password" name="password" autocomplete="current-password">
+        <button type="submit" class="btn btn-primary">Logga in</button>
+      </form>
+      <button type="button" class="btn btn-close-modal" id="btn-close-login">Stäng</button>
+    </div>
+  </div>
+
+  <!-- Modal: redigera senaste match (admin) -->
+  <div class="modal hidden" id="edit-latest-match-modal" role="dialog" aria-labelledby="edit-latest-match-title">
+    <div class="modal-content">
+      <h2 id="edit-latest-match-title">Redigera senaste match</h2>
+      <p class="hint">Ändra vilka som var vinnare/förlorare (eller spelare i oavgjorten). Statistiken uppdateras automatiskt.</p>
+      <div class="edit-match-draw-wrap hidden" id="edit-match-draw-wrap">
+        <span class="team-column-title">Spelare i matchen (oavgjort)</span>
+        <div id="edit-match-draw-checkboxes" class="player-checkboxes"></div>
+      </div>
+      <div class="edit-match-teams-wrap" id="edit-match-teams-wrap">
+        <div class="team-column">
+          <span class="team-column-title">Vinnare</span>
+          <div id="edit-match-winners-checkboxes" class="player-checkboxes"></div>
+        </div>
+        <div class="team-column">
+          <span class="team-column-title">Förlorare</span>
+          <div id="edit-match-losers-checkboxes" class="player-checkboxes"></div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary" id="edit-latest-match-save">Spara ändringar</button>
+      <button type="button" class="btn btn-close-modal" id="edit-latest-match-close">Stäng</button>
+    </div>
+  </div>
+
+  <!-- Modal: redigera statistik (admin) -->
+  <div class="modal hidden" id="edit-stats-modal" role="dialog" aria-labelledby="edit-stats-title">
+    <div class="modal-content">
+      <h2 id="edit-stats-title">Redigera statistik</h2>
+      <p class="hint">Ändra vinster, förluster och oavgjort för spelaren. Påverkar endast denna spelare.</p>
+      <form id="edit-stats-form">
+        <input type="hidden" id="edit-stats-player-id">
+        <label for="edit-stats-wins">Vinster (W)</label>
+        <input type="number" id="edit-stats-wins" name="wins" min="0" step="1">
+        <label for="edit-stats-losses">Förluster (L)</label>
+        <input type="number" id="edit-stats-losses" name="losses" min="0" step="1">
+        <label for="edit-stats-draws">Oavgjort (D)</label>
+        <input type="number" id="edit-stats-draws" name="draws" min="0" step="1">
+        <label for="edit-stats-prefix-win-streak">Inledande vinststreak (före sparad matchhistorik)</label>
+        <input type="number" id="edit-stats-prefix-win-streak" name="prefixWinStreak" min="0" step="1" value="0">
+        <p class="hint" style="margin-top:0.35rem">Räknas som raka vinster direkt före den första registrerade matchen. Nuvarande streak och längsta vinststreak uppdateras automatiskt när nya matcher läggs in. De tre sista resultaten visar bara registrerade matcher.</p>
+        <button type="submit" class="btn btn-primary">Spara</button>
+      </form>
+      <button type="button" class="btn btn-close-modal" id="btn-close-edit-stats">Stäng</button>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+node_modules/
+.env
+
+# Lokala datafiler och backuper med riktiga spelare/matcher
+data/
+*.backup.json
+stats-backup-*.json
+payments.csv
