@@ -317,6 +317,85 @@ function renderRanking(players, statsById, orderedPlayers) {
     .join('');
 }
 
+const MIN_CHEMISTRY_MATCHES = 3;
+
+/**
+ * Bästa partner och nemesis för en spelare utifrån matcher med lag (oavgjorda saknar lag och räknas inte).
+ * Partner = högst vinstprocent i samma lag. Nemesis = oftast förlorat mot, när den andra var i motståndarlaget.
+ * Kräver minst MIN_CHEMISTRY_MATCHES matcher ihop/mot.
+ */
+function computeChemistry(playerId, players, matches) {
+  const known = new Set(players.map((p) => p.id));
+  const together = {};
+  const against = {};
+  const add = (map, id, won) => {
+    if (id === playerId || !known.has(id)) return;
+    if (!map[id]) map[id] = { games: 0, wins: 0 };
+    map[id].games++;
+    if (won) map[id].wins++;
+  };
+  matches.forEach((m) => {
+    const winners = m.winnerIds || [];
+    const losers = m.loserIds || [];
+    let mine;
+    let theirs;
+    let won;
+    if (winners.includes(playerId)) {
+      [mine, theirs, won] = [winners, losers, true];
+    } else if (losers.includes(playerId)) {
+      [mine, theirs, won] = [losers, winners, false];
+    } else return;
+    mine.forEach((id) => add(together, id, won));
+    theirs.forEach((id) => add(against, id, won));
+  });
+
+  const pickBest = (map, score) => {
+    let best = null;
+    Object.entries(map).forEach(([id, r]) => {
+      if (r.games < MIN_CHEMISTRY_MATCHES) return;
+      const sc = score(r);
+      if (!best || sc > best.sc || (sc === best.sc && r.games > best.games)) {
+        best = { id: Number(id), sc, ...r };
+      }
+    });
+    return best;
+  };
+  const partner = pickBest(together, (r) => r.wins / r.games);
+  const nemesis = pickBest(against, (r) => (r.games - r.wins) / r.games);
+  const nameOf = (id) => (players.find((p) => p.id === id) || {}).name || '';
+  return {
+    partner: partner ? { name: nameOf(partner.id), wins: partner.wins, games: partner.games } : null,
+    // Nemesis bara om man förlorat mer än hälften mot någon; annars finns underlag men ingen nemesis
+    nemesis: nemesis
+      ? nemesis.sc > 0.5
+        ? { name: nameOf(nemesis.id), losses: nemesis.games - nemesis.wins, games: nemesis.games }
+        : { none: true }
+      : null,
+  };
+}
+
+function chemistryHtml(playerId) {
+  const data = window._lastData;
+  const matches = window._seasonMatches || (data && data.matches) || [];
+  if (!data) return '';
+  const { partner, nemesis } = computeChemistry(playerId, data.players, matches);
+  const row = (icon, label, value) =>
+    `<div class="chem-row"><span class="chem-label">${icon} ${label}</span><span class="chem-value">${value}</span></div>`;
+  const few = '<span class="chem-empty">För få matcher än</span>';
+  return (
+    '<div class="chemistry" aria-label="Kemi">' +
+    row('🤝', 'Bästa partner', partner
+      ? `<b>${escapeHtml(partner.name)}</b><small>${partner.wins} av ${partner.games} vinster ihop</small>`
+      : few) +
+    row('😈', 'Nemesis', !nemesis
+      ? few
+      : nemesis.none
+        ? '<b>Ingen just nu 💪</b>'
+        : `<b>${escapeHtml(nemesis.name)}</b><small>förlorat ${nemesis.losses} av ${nemesis.games} mot</small>`) +
+    '</div>'
+  );
+}
+
 /** Bottenark med all statistik för en spelare. */
 function openPlayerSheet(playerId) {
   const data = window._lastData;
@@ -341,6 +420,7 @@ function openPlayerSheet(playerId) {
     `<div><dt>Längsta vinststreak</dt><dd>${s.longestWinStreak || 0}</dd></div>` +
     `<div><dt>Senaste 3 <small>(nyast först)</small></dt><dd class="last-matches">${lastResultsHtml(s.lastResults) || '–'}</dd></div>` +
     '</dl>' +
+    chemistryHtml(p.id) +
     (getAdminToken() ? editStatsButton(p, (window._allStats || statsById)[p.id], '✏️ Redigera statistik (totalt)') : '');
   bindEditStatsButtons(body);
   document.getElementById('player-sheet').classList.remove('hidden');
@@ -538,6 +618,7 @@ function renderSeasonInfo(allMatches, seasonMatches) {
 function renderStatsViews(data) {
   window._allStats = computeStats(data.players, data.matches);
   const { statsById, matches } = computeSeasonStats(data.players, data.matches, selectedSeason);
+  window._seasonMatches = matches;
   const ordered = rankPlayers(data.players, statsById);
   renderRanking(data.players, statsById, ordered);
   renderHighscore(data.players, statsById);
@@ -1443,6 +1524,32 @@ document.getElementById('btn-confirm-result-save').addEventListener('click', asy
     showErrorMessage('Nätverksfel. Försök igen.');
   } finally {
     btn.disabled = false;
+  }
+});
+
+// —— Dela lagen till gruppchatten ——
+function teamsShareText(teams) {
+  const names = (list) => (list || []).map((p) => p.name).join(', ');
+  return '⚽ Lagen är klara!\n🔵 Lag A: ' + names(teams.teamA) + '\n🔴 Lag B: ' + names(teams.teamB);
+}
+
+document.getElementById('btn-share-teams').addEventListener('click', async () => {
+  const teams = window._lastSession && window._lastSession.generatedTeams;
+  if (!teams || !teams.teamA) return;
+  const text = teamsShareText(teams);
+  if (navigator.share) {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    showSuccessMessage('Kopierat – klistra in i chatten');
+  } catch (err) {
+    showErrorMessage('Kunde inte dela eller kopiera lagen');
   }
 });
 
