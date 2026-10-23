@@ -20,6 +20,24 @@
   --header-bg: rgba(245, 244, 242, 0.88);
 }
 
+/* Ljust läge: något mörkare, dämpade nyanser så att det inte bländar */
+:root:not([data-theme="dark"]) {
+  --bg: #e3e1dc;
+  --surface: #f1f0ec;
+  --surface-2: #e2e0db;
+  --border: #d0cdc6;
+  --header-bg: rgba(227, 225, 220, 0.9);
+  --table-header-bg: #d9d7d1;
+  --table-row-hover: #e6e4df;
+  --input-bg: #f1f0ec;
+  --input-border: #c2bfb8;
+  --admin-card-bg: #e2e0db;
+  --text-muted: #555350;
+  --accent: #1d4ed8;
+  --win: #136c34;
+  --draw: #7a5000;
+}
+
 [data-theme="dark"] {
   --surface: #1c1c1f;
   --surface-2: #232327;
